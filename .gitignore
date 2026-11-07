@@ -1,0 +1,40 @@
+
+# Environnements virtuels
+venv/
+env/
+envtelcom_churn/
+.venv/
+
+# Fichiers Python temporaires
+__pycache__/
+*.py[cod]
+*.pyo
+
+# Fichiers Jupyter Notebook
+.ipynb_checkpoints/
+
+# Fichiers système
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Configuration locale et variables sensibles
+.env
+.env.*
+!.env.example
+
+# Fichiers de logs
+*.log
+
+# Cache des outils
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# Environnements de développement
+.vscode/
+.idea/
+
+# Fichiers temporaires
+*.tmp
+*.bak
