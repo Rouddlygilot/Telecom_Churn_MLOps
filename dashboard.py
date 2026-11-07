@@ -4,6 +4,7 @@ from pathlib import Path
 import pandas as pd
 import streamlit as st
 import matplotlib.pyplot as plt
+
 from streamlit_autorefresh import st_autorefresh
 
 
@@ -34,11 +35,19 @@ st.caption("Actualisation automatique toutes les 10 secondes.")
 
 
 # ==========================================
-# 2. CHARGEMENT DES DONNEES
+# 2. CHEMINS DES FICHIERS
 # ==========================================
 
 PROJECT_DIR = Path(__file__).resolve().parent
+
 LOG_FILE = PROJECT_DIR / "logs" / "predictions.csv"
+
+DRIFT_FILE = PROJECT_DIR / "reports" / "data_drift_report.csv"
+
+
+# ==========================================
+# 3. CHARGEMENT DES DONNEES
+# ==========================================
 
 if not LOG_FILE.exists():
     st.warning("Aucun fichier de monitoring trouvé.")
@@ -79,7 +88,7 @@ if missing_columns:
 
 
 # ==========================================
-# 3. PREPARATION DES DONNEES
+# 4. PREPARATION DES DONNEES
 # ==========================================
 
 df["timestamp_utc"] = pd.to_datetime(
@@ -129,7 +138,7 @@ last_prediction_date = df["timestamp_utc"].max()
 
 
 # ==========================================
-# 4. INDICATEURS CLES (KPI)
+# 5. INDICATEURS CLES (KPI)
 # ==========================================
 
 total_predictions = len(df)
@@ -137,13 +146,9 @@ total_predictions = len(df)
 churn_yes = (df["prediction"] == 1).sum()
 churn_no = (df["prediction"] == 0).sum()
 
-churn_rate = (
-    churn_yes / total_predictions * 100
-)
+churn_rate = churn_yes / total_predictions * 100
 
-average_probability = (
-    df["probability"].mean() * 100
-)
+average_probability = df["probability"].mean() * 100
 
 st.subheader("Indicateurs clés")
 
@@ -181,7 +186,7 @@ st.caption(
 
 
 # ==========================================
-# 5. REPARTITION DES PREDICTIONS
+# 6. REPARTITION DES PREDICTIONS
 # ==========================================
 
 st.subheader("Répartition des prédictions")
@@ -213,7 +218,7 @@ plt.close(fig)
 
 
 # ==========================================
-# 6. DISTRIBUTION DES PROBABILITES
+# 7. DISTRIBUTION DES PROBABILITES
 # ==========================================
 
 st.subheader("Distribution des probabilités de churn")
@@ -237,7 +242,7 @@ plt.close(fig)
 
 
 # ==========================================
-# 7. EVOLUTION DES PREDICTIONS
+# 8. EVOLUTION DES PREDICTIONS
 # ==========================================
 
 st.subheader("Évolution des prédictions dans le temps")
@@ -269,7 +274,7 @@ plt.close(fig)
 
 
 # ==========================================
-# 8. HISTORIQUE DES PREDICTIONS
+# 9. HISTORIQUE DES PREDICTIONS
 # ==========================================
 
 st.subheader("Historique des prédictions")
@@ -285,7 +290,6 @@ df_display["timestamp_utc"] = (
     .dt.strftime("%d/%m/%Y %H:%M:%S UTC")
 )
 
-# Affichage du tableau
 st.dataframe(
     df_display,
     use_container_width=True,
@@ -294,7 +298,148 @@ st.dataframe(
 
 
 # ==========================================
-# 9. INFORMATIONS GENERALES
+# 10. SURVEILLANCE DU DATA DRIFT
+# ==========================================
+
+st.divider()
+
+st.subheader("Surveillance du Data Drift")
+
+if not DRIFT_FILE.exists():
+
+    st.warning(
+        "Aucun rapport de Data Drift disponible."
+    )
+
+    st.info(
+        "Exécutez la commande : python -m src.drift"
+    )
+
+else:
+
+    try:
+        drift_df = pd.read_csv(DRIFT_FILE)
+
+        if drift_df.empty:
+            st.warning("Le rapport de Data Drift est vide.")
+
+        else:
+
+            required_drift_columns = [
+                "variable",
+                "type",
+                "PSI",
+                "niveau_drift"
+            ]
+
+            missing_drift_columns = [
+                column for column in required_drift_columns
+                if column not in drift_df.columns
+            ]
+
+            if missing_drift_columns:
+                st.error(
+                    "Colonnes manquantes dans le rapport : "
+                    f"{missing_drift_columns}"
+                )
+
+            else:
+
+                drift_df["PSI"] = pd.to_numeric(
+                    drift_df["PSI"],
+                    errors="coerce"
+                )
+
+                # Comptage des niveaux de drift
+                faible = (
+                    drift_df["niveau_drift"] == "Faible"
+                ).sum()
+
+                modere = (
+                    drift_df["niveau_drift"] == "Modéré"
+                ).sum()
+
+                important = (
+                    drift_df["niveau_drift"] == "Important"
+                ).sum()
+
+                col1, col2, col3 = st.columns(3)
+
+                col1.metric(
+                    "Drift faible",
+                    int(faible)
+                )
+
+                col2.metric(
+                    "Drift modéré",
+                    int(modere)
+                )
+
+                col3.metric(
+                    "Drift important",
+                    int(important)
+                )
+
+                # Tableau des résultats
+                st.markdown("### Résultats par variable")
+
+                drift_display = drift_df.sort_values(
+                    "PSI",
+                    ascending=False
+                )
+
+                st.dataframe(
+                    drift_display,
+                    use_container_width=True,
+                    hide_index=True
+                )
+
+                # Graphique du PSI
+                st.markdown("### Visualisation du PSI")
+
+                fig, ax = plt.subplots(figsize=(10, 6))
+
+                ax.barh(
+                    drift_display["variable"],
+                    drift_display["PSI"]
+                )
+
+                ax.set_xlabel(
+                    "Population Stability Index (PSI)"
+                )
+
+                ax.set_ylabel("Variables")
+
+                ax.set_title(
+                    "Niveau de Data Drift par variable"
+                )
+
+                ax.invert_yaxis()
+
+                plt.tight_layout()
+
+                st.pyplot(fig)
+                plt.close(fig)
+
+                st.caption(
+                    "Rapport calculé à partir des données de "
+                    "référence et des nouvelles observations "
+                    "enregistrées."
+                )
+
+    except (
+        pd.errors.EmptyDataError,
+        PermissionError,
+        OSError
+    ) as error:
+
+        st.error(
+            f"Impossible de lire le rapport de Data Drift : {error}"
+        )
+
+
+# ==========================================
+# 11. INFORMATIONS GENERALES
 # ==========================================
 
 st.divider()
@@ -307,4 +452,9 @@ st.caption(
 st.caption(
     "Les indicateurs représentent les prédictions enregistrées "
     "et non les résiliations réellement observées."
+)
+
+st.caption(
+    "Le Data Drift est calculé à partir du rapport "
+    "reports/data_drift_report.csv."
 )

@@ -38,3 +38,10 @@ desktop.ini
 # Fichiers temporaires
 *.tmp
 *.bak
+
+# Journaux et données générées pendant l'exécution
+logs/
+sauvegarde_docker/
+
+# Rapports générés automatiquement
+reports/
